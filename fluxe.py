@@ -64,6 +64,12 @@ class Airfoil:
 	def computeFourrier(self, depth=30):
 		self.sf = Fourrier.serie(self.deriv, depth, self.theta)
 
+	def plot(self, axis=plt, resolution=100, color='black', lw=3):
+		x = np.linspace(0,1,resolution)
+		y = np.vectorize(self.profile)(x)
+		axis.plot(x, y, color=color, lw=lw)
+
+
 # -----------------------------------------------------------------------------
 
 class Naca4(Airfoil):
@@ -80,12 +86,15 @@ class Naca4(Airfoil):
 # Simulation
 # =============================================================================
 class Simulation:
+	def __init__(self, airfoil, grid):
+		pool         = multiprocessing.Pool()
+		res          = pool.starmap(Simulation.velocity, zip(itertools.repeat(airfoil), grid.xv.flat, grid.zv.flat))
+		self.results = np.array(res).reshape(grid.zstep, grid.xstep, 2)
 
-	def tourbillons(airfoil,t):
-		sf      = np.copy(airfoil.sf)
-		sf[0]  *= (1+np.cos(t)) / np.sin(t)
-		sf[1:] *= np.sin(t*np.arange(1, np.size(sf), dtype=np.float64))
-		return np.sum(sf)
+	def velocity(airfoil,x,z):
+		vx = Simulation.velocity_x(airfoil,x,z)
+		vz = Simulation.velocity_z(airfoil,x,z) * np.abs(airfoil.deriv(x))
+		return [vx, vz]
 
 	def velocity_x(airfoil,x,z):
 		def gamma(t): return Simulation.tourbillons(airfoil,t) * np.sin(t) * z / max(1e-6, (x-(1-np.cos(t))/2)**2 + z**2)
@@ -99,47 +108,45 @@ class Simulation:
 		# def gamma(dx): return Simulation.tourbillons(airfoil, np.arccos(1-2*dx)) * (x-dx) / max(1e-6, (x-dx)**2 + z**2)
 		# return - 1 / (2*np.pi) * scipy.integrate.quad(gamma,0,1)[0]
 
-	def velocity(airfoil,x,z):
-		vx = Simulation.velocity_x(airfoil,x,z)
-		vz = Simulation.velocity_z(airfoil,x,z) * np.abs(airfoil.deriv(x))
-		# vx = 0
-		# vz = 0
-		return [vx, vz]
+	def tourbillons(airfoil,t):
+		sf      = np.copy(airfoil.sf)
+		sf[0]  *= (1+np.cos(t)) / np.sin(t)
+		sf[1:] *= np.sin(t*np.arange(1, np.size(sf), dtype=np.float64))
+		return np.sum(sf)
 
-	def streamlines(airfoil, grid):
-		pool  = multiprocessing.Pool()
-		res   = pool.starmap(Simulation.velocity, zip(itertools.repeat(airfoil), grid.xv.flat, grid.zv.flat))
-		return np.array(res).reshape(grid.zstep, grid.xstep, 2)
+	def plot(self, grid, axis=plt, flux=1, theta=0):
+		velx = self.results[:,:,0] + flux * np.cos(theta)
+		velz = self.results[:,:,1] + flux * np.sin(theta)
+		norm = np.sqrt(velx**2 + velz**2)
+		axis.contourf(grid.xv, grid.zv, norm, 100)
+		axis.quiver(grid.xv, grid.zv, velx, velz)
+		axis.set_aspect('equal')
+
 
 # =============================================================================
 
 
 
+
 if __name__ == '__main__':
 
-	flux    = 1e0
-	theta   = math.radians(15)
-	grid    = Grid(xstep=32, zstep=16, xmin=-0.5, xmax=+1.5)
-
-	airfoil = Naca4('4212')
-
 	# ---------------------------------------------------------------------------
-
 	start_time = time.time()
-	results = Simulation.streamlines(airfoil, grid)
+
+	theta      = math.radians(5)
+	grid       = Grid(xstep=32, zstep=16, xmin=-0.5, xmax=+1.5)
+	airfoil    = Naca4('4212', theta=theta)
+	simulation = Simulation(airfoil, grid)
+
+
 	print("Simulation compute time --- %3.6s seconds" % (time.time() - start_time))
 
 	# ---------------------------------------------------------------------------
 
-	velx = results[:,:,0] + flux * np.cos(theta)
-	velz = results[:,:,1] + flux * np.sin(theta)
-	norm = np.sqrt(velx**2 + velz**2)
 
-	fig = plt.figure()
+	ax = plt.figure().add_subplot(111)
 
-	ax = fig.add_subplot(111)
-	ax.contourf(grid.xv, grid.zv, norm, 100)
-	ax.quiver(grid.xv, grid.zv, velx, velz)
-	ax.set_aspect('equal')
+	airfoil.plot(axis=ax)
+	simulation.plot(grid, axis=ax, theta=theta)
 
 	plt.show()
