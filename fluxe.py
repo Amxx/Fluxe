@@ -52,17 +52,15 @@ class Grid:
 # Profiles
 # =============================================================================
 class Airfoil:
-	def __init__(self, deriv, theta=0, depth=30):
+	def __init__(self, deriv):
 		self.profile = Memoize(self._profile)
 		self.deriv   = Memoize(deriv)
-		self.theta   = theta
-		Airfoil.computeFourrier(self, depth)
 
 	def _profile(self, x):
 		return scipy.integrate.quad(self.deriv, 0, x)[0]
 
-	def computeFourrier(self, depth=30):
-		self.sf = Fourrier.serie(self.deriv, depth, self.theta)
+	def computeFourrier(self, theta=0, depth=30):
+		self.sf = Fourrier.serie(self.deriv, depth, theta)
 
 	def plot(self, axis=plt, resolution=100, color='black', lw=3):
 		x = np.linspace(0,1,resolution)
@@ -73,11 +71,11 @@ class Airfoil:
 # -----------------------------------------------------------------------------
 
 class Naca4(Airfoil):
-	def __init__(self, serie, theta=0, depth=30):
+	def __init__(self, serie):
 		self.m  = int(serie[0]  ) / 100
 		self.p  = int(serie[1]  ) / 10
 		self.xx = int(serie[2:4]) / 100
-		Airfoil.__init__(self, self, theta, depth)
+		Airfoil.__init__(self, self)
 
 	def __call__(self, x):
 		return 2*self.m*(self.p-x)/self.p**2 if x<self.p else 2*self.m*(self.p-x)/(1-self.p)**2
@@ -86,10 +84,33 @@ class Naca4(Airfoil):
 # Simulation
 # =============================================================================
 class Simulation:
-	def __init__(self, airfoil, grid):
-		pool         = multiprocessing.Pool()
-		res          = pool.starmap(Simulation.velocity, zip(itertools.repeat(airfoil), grid.xv.flat, grid.zv.flat))
-		self.results = np.array(res).reshape(grid.zstep, grid.xstep, 2)
+	def __init__(self, grid, theta=0, flux=1):
+		self.grid        = grid
+		self.theta       = theta
+		self.flow        = np.zeros((grid.zstep, grid.xstep, 2), dtype=np.float64)
+		self.flow[:,:,0] = flux * np.cos(theta)
+		self.flow[:,:,1] = flux * np.sin(theta)
+
+	def addAirfoil(self, airfoil, depth=30):
+		airfoil.computeFourrier(self.theta, depth)
+		pool       = multiprocessing.Pool()
+		raw        = pool.starmap(Simulation.velocity, zip(itertools.repeat(airfoil), self.grid.xv.flat, self.grid.zv.flat))
+		self.flow += np.array(raw).reshape(self.flow.shape)
+
+	def plot(self, axis=plt):
+		axis.contourf(self.grid.xv,
+		              self.grid.zv,
+		              np.linalg.norm(self.flow, axis=2),
+		              100)
+		axis.quiver(self.grid.xv,
+		            self.grid.zv,
+		            self.flow[:,:,0],
+		            self.flow[:,:,1],
+		            # np.linalg.norm(self.flow, axis=2),
+		            # cmap='rainbow',
+		            pivot='mid',
+		            width=1e-3)
+		axis.set_aspect('equal')
 
 	def velocity(airfoil,x,z):
 		vx = Simulation.velocity_x(airfoil,x,z)
@@ -114,14 +135,6 @@ class Simulation:
 		sf[1:] *= np.sin(t*np.arange(1, np.size(sf), dtype=np.float64))
 		return np.sum(sf)
 
-	def plot(self, grid, axis=plt, flux=1, theta=0):
-		velx = self.results[:,:,0] + flux * np.cos(theta)
-		velz = self.results[:,:,1] + flux * np.sin(theta)
-		norm = np.sqrt(velx**2 + velz**2)
-		axis.contourf(grid.xv, grid.zv, norm, 100)
-		axis.quiver(grid.xv, grid.zv, velx, velz)
-		axis.set_aspect('equal')
-
 
 # =============================================================================
 
@@ -134,10 +147,11 @@ if __name__ == '__main__':
 	start_time = time.time()
 
 	theta      = math.radians(5)
-	grid       = Grid(xstep=32, zstep=16, xmin=-0.5, xmax=+1.5)
-	airfoil    = Naca4('4212', theta=theta)
-	simulation = Simulation(airfoil, grid)
+	grid       = Grid(xstep=16, zstep=16, xmin=-0.5, xmax=+1.5)
+	airfoil    = Naca4('4212')
 
+	simulation = Simulation(grid, theta=theta)
+	simulation.addAirfoil(airfoil)
 
 	print("Simulation compute time --- %3.6s seconds" % (time.time() - start_time))
 
@@ -145,8 +159,6 @@ if __name__ == '__main__':
 
 
 	ax = plt.figure().add_subplot(111)
-
 	airfoil.plot(axis=ax)
-	simulation.plot(grid, axis=ax, theta=theta)
-
+	simulation.plot(axis=ax)
 	plt.show()
