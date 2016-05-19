@@ -6,16 +6,14 @@ import math
 import matplotlib
 import matplotlib.pyplot as plt
 import multiprocessing
-import numexpr as ne
-import numpy as np
+import numpy             as np
 import scipy.integrate
 import time
 
-matplotlib.style.use('ggplot')
+# matplotlib.style.use('ggplot')
 
 # =============================================================================
-# Memoize
-# replace with : @functools.lru_cache(maxsize=None) ?
+# Memoize --- replace with : @functools.lru_cache(maxsize=None) ?
 # =============================================================================
 class Memoize:
 	def __init__(self, f):
@@ -66,7 +64,6 @@ class Airfoil:
 		x = np.linspace(0,1,resolution)
 		y = np.vectorize(self.profile)(x)
 		axis.plot(x, y, color=color, lw=lw)
-
 
 # -----------------------------------------------------------------------------
 
@@ -135,30 +132,30 @@ class Simulation:
 		sf[1:] *= np.sin(t*np.arange(1, np.size(sf), dtype=np.float64))
 		return np.sum(sf)
 
-
 # =============================================================================
-
-
-
+# =============================================================================
 
 if __name__ == '__main__':
 
 	# ---------------------------------------------------------------------------
 	start_time = time.time()
+	# ---------------------------------------------------------------------------
 
-	theta      = math.radians(5)
-	grid       = Grid(xstep=16, zstep=16, xmin=-0.5, xmax=+1.5)
-	airfoil    = Naca4('4212')
+	theta      = math.radians(10)
+	grid       = Grid(xstep=48, xmin=-0.25, xmax=+1.25,
+	                  zstep=32, zmin=-0.50, zmax=+0.50)
+	airfoil    = Naca4('2402')
 
 	simulation = Simulation(grid, theta=theta)
 	simulation.addAirfoil(airfoil)
 
-	print("Simulation compute time --- %3.6s seconds" % (time.time() - start_time))
-
+	# ---------------------------------------------------------------------------
+	print("Computation time --- %3.6s seconds" % (time.time() - start_time))
 	# ---------------------------------------------------------------------------
 
-
 	ax = plt.figure().add_subplot(111)
+
 	airfoil.plot(axis=ax)
 	simulation.plot(axis=ax)
+
 	plt.show()
