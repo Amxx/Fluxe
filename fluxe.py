@@ -1,6 +1,5 @@
-#!/usr/bin/python
-
-# import functools
+#!/usr/bin/python2
+import argparse
 import itertools
 import math
 import matplotlib
@@ -70,7 +69,7 @@ class Airfoil:
 class Naca4(Airfoil):
 	def __init__(self, serie):
 		self.m  = int(serie[0]  ) / 100
-		self.p  = int(serie[1]  ) / 10
+		self.p  = int(serie[1]  ) /  10
 		self.xx = int(serie[2:4]) / 100
 		Airfoil.__init__(self, self)
 
@@ -80,6 +79,8 @@ class Naca4(Airfoil):
 # =============================================================================
 # Simulation
 # =============================================================================
+
+
 class Simulation:
 	def __init__(self, grid, theta=0, flux=1):
 		self.grid        = grid
@@ -117,14 +118,10 @@ class Simulation:
 	def velocity_x(airfoil,x,z):
 		def gamma(t): return Simulation.tourbillons(airfoil,t) * np.sin(t) * z / max(1e-6, (x-(1-np.cos(t))/2)**2 + z**2)
 		return + 1 / (2*np.pi)*scipy.integrate.quad(gamma,0,np.pi)[0]
-		# def gamma(dx): return Simulation.tourbillons(airfoil, np.arccos(1-2*dx)) * z / max(1e-6, (x-dx)**2 + z**2)
-		# return + 1 / (2*np.pi) * scipy.integrate.quad(gamma,0,1)[0]
 
 	def velocity_z(airfoil,x,z):
 		def gamma(t,): return Simulation.tourbillons(airfoil,t) * np.sin(t) * (x-(1-np.cos(t))/2) / max(1e-6, (x-(1-np.cos(t))/2)**2 + z**2)
 		return - 1 / (2*np.pi)*scipy.integrate.quad(gamma,0,np.pi)[0]
-		# def gamma(dx): return Simulation.tourbillons(airfoil, np.arccos(1-2*dx)) * (x-dx) / max(1e-6, (x-dx)**2 + z**2)
-		# return - 1 / (2*np.pi) * scipy.integrate.quad(gamma,0,1)[0]
 
 	def tourbillons(airfoil,t):
 		sf      = np.copy(airfoil.sf)
@@ -136,21 +133,26 @@ class Simulation:
 # =============================================================================
 
 if __name__ == '__main__':
+	parser = argparse.ArgumentParser(description='Fluxe')
+	parser.add_argument('naca4',         type=str              )
+	parser.add_argument('-a', '--angle', type=float, default=0 )
+	parser.add_argument('-g', '--grid',  type=int,   default=64)
+	args = parser.parse_args()
 
 	# ---------------------------------------------------------------------------
-	start_time = time.time()
+	# start_time = time.time()
 	# ---------------------------------------------------------------------------
 
-	theta      = math.radians(10)
-	grid       = Grid(xstep=48, xmin=-0.25, xmax=+1.25,
-	                  zstep=32, zmin=-0.50, zmax=+0.50)
-	airfoil    = Naca4('2402')
+	airfoil    = Naca4(args.naca4)
+	theta      = math.radians(args.angle)
+	grid       = Grid(xstep=args.grid, xmin=-0.25, xmax=+1.25,
+	                  zstep=args.grid, zmin=-0.50, zmax=+0.50)
 
 	simulation = Simulation(grid, theta=theta)
 	simulation.addAirfoil(airfoil)
 
 	# ---------------------------------------------------------------------------
-	print("Computation time --- %3.6s seconds" % (time.time() - start_time))
+	# print("Computation time --- %3.6s seconds" % (time.time() - start_time))
 	# ---------------------------------------------------------------------------
 
 	ax = plt.figure().add_subplot(111)
@@ -158,4 +160,5 @@ if __name__ == '__main__':
 	airfoil.plot(axis=ax)
 	simulation.plot(axis=ax)
 
-	plt.show()
+	plt.savefig('profil.pdf')
+	# plt.show()
