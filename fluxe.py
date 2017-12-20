@@ -134,9 +134,10 @@ class Simulation:
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser(description='Fluxe')
-	parser.add_argument('naca4',         type=str              )
-	parser.add_argument('-a', '--angle', type=float, default=0 )
-	parser.add_argument('-g', '--grid',  type=int,   default=64)
+	parser.add_argument('naca4',          type=str              )
+	parser.add_argument('-a', '--angle',  type=float, default=0 )
+	parser.add_argument('-g', '--grid',   type=int,   default=64)
+	parser.add_argument('-o', '--output', type=str,   default="output.pdf")
 	args = parser.parse_args()
 
 	# ---------------------------------------------------------------------------
@@ -160,5 +161,5 @@ if __name__ == '__main__':
 	airfoil.plot(axis=ax)
 	simulation.plot(axis=ax)
 
-	plt.savefig('profil.pdf')
+	plt.savefig(args.output)
 	# plt.show()
